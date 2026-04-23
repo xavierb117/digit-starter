@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Digit Recognizer — Browser Side</title>
+  <link rel="stylesheet" href="style.css">
+  <style>:root { --accent: #2196f3; }</style>
+</head>
+<body>
+
+  <nav class="nav">
+    <a href="/">Server side</a>
+    <a href="/browser" class="active">Browser side</a>
+  </nav>
+
+  <div class="badge">BROWSER SIDE — model runs in your browser via TF.js</div>
+  <h1>Digit Recognizer</h1>
+  <p class="subtitle">Draw a digit, hit Predict. Nothing is sent to the server.</p>
+
+  <canvas id="canvas" width="280" height="280"></canvas>
+
+  <div class="buttons">
+    <button id="predict-btn" disabled>Loading model...</button>
+    <button id="clear-btn">Clear</button>
+  </div>
+
+  <div class="result">
+    <div class="digit" id="digit">?</div>
+    <div class="conf"  id="conf">Waiting for model to load...</div>
+    <div class="bars"  id="bars"></div>
+  </div>
+
+  <div id="status"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+  <script src="drawing.js"></script>
+
+<script>
+  initCanvas('canvas')
+
+  const barsDiv = document.getElementById('bars')
+  for (let i = 0; i < 10; i++) {
+    barsDiv.innerHTML += `
+      <div class="bar-col">
+        <div class="bar" id="bar-${i}" style="height:3px"></div>
+        <div class="bar-label">${i}</div>
+      </div>`
+  }
+
+  function updateBars(probs, predicted) {
+    const maxP = Math.max(...probs)
+    for (let i = 0; i < 10; i++) {
+      const bar = document.getElementById(`bar-${i}`)
+      bar.style.height     = Math.max(3, (probs[i] / maxP) * 74) + 'px'
+      bar.style.background = i === predicted ? 'var(--accent)' : '#444'
+    }
+  }
+
+  document.getElementById('clear-btn').onclick = () => {
+    clearCanvas('canvas')
+    document.getElementById('digit').textContent = '?'
+    document.getElementById('conf').textContent  = 'Draw a digit and click Predict'
+    for (let i = 0; i < 10; i++) {
+      document.getElementById(`bar-${i}`).style.height     = '3px'
+      document.getElementById(`bar-${i}`).style.background = '#333'
+    }
+  }
+
+  // ── Preprocessing ────────────────────────────────────────────────────────────
+  // Mirrors bbox_normalize() from the training pipeline.
+  // TF.js built-in ops handle the crop and resize.
+
+  async function bboxNormalize(tensor28) {
+    const data = await tensor28.data()
+    const PAD  = 2
+    let r0 = 27, r1 = 0, c0 = 27, c1 = 0
+
+    for (let r = 0; r < 28; r++) {
+      for (let c = 0; c < 28; c++) {
+        if (data[r * 28 + c] > 0.2) {
+          if (r < r0) r0 = r;  if (r > r1) r1 = r
+          if (c < c0) c0 = c;  if (c > c1) c1 = c
+        }
+      }
+    }
+
+    if (r0 > r1) return tensor28
+
+    r0 = Math.max(0,  r0 - PAD);  r1 = Math.min(27, r1 + PAD)
+    c0 = Math.max(0,  c0 - PAD);  c1 = Math.min(27, c1 + PAD)
+
+    const cropped = tf.slice(tensor28, [r0, c0, 0], [r1 - r0 + 1, c1 - c0 + 1, 1])
+    const resized  = tf.image.resizeBilinear(cropped.expandDims(0), [28, 28]).squeeze([0])
+    tensor28.dispose()
+    cropped.dispose()
+    return resized
+  }
+
+  // ── Load model ───────────────────────────────────────────────────────────────
+  let model = null
+
+  tf.loadLayersModel('model/model.json')
+    .then(m => {
+      model = m
+      document.getElementById('predict-btn').disabled    = false
+      document.getElementById('predict-btn').textContent = 'Predict'
+      document.getElementById('conf').textContent        = 'Draw a digit and click Predict'
+      document.getElementById('status').textContent      =
+        `Model loaded — ${(tf.memory().numBytes / 1024 / 1024).toFixed(1)} MB in browser`
+    })
+    .catch(() => {
+      document.getElementById('conf').textContent   = 'Model not found'
+      document.getElementById('status').textContent = 'Copy your model/ folder into this directory'
+    })
+
+  // ── Predict ──────────────────────────────────────────────────────────────────
+  document.getElementById('predict-btn').onclick = async () => {
+    const pixels = getPixels('canvas')
+
+    let t = tf.tensor(pixels, [28, 28, 1])
+    t     = await bboxNormalize(t)
+
+    // TODO: run inference here
+    // 1. Call model.predict() with t.expandDims(0) as input
+    // 2. Extract the probability array from the output tensor using .dataSync()
+    // 3. Find the index of the highest probability (that's the predicted digit)
+    // 4. Dispose the input and output tensors
+
+    const probs = null  // replace this
+    const digit = null  // replace this
+
+    document.getElementById('digit').textContent = digit
+    document.getElementById('conf').textContent  = `${(probs[digit] * 100).toFixed(1)}% confident`
+    updateBars(probs, digit)
+  }
+</script>
+</body>
+</html>

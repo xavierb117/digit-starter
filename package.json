@@ -1,0 +1,8 @@
+{
+  "name": "digit-recognizer",
+  "version": "1.0.0",
+  "dependencies": {
+    "express": "^4.18.0",
+    "onnxruntime-node": "^1.18.0"
+  }
+}

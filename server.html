@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Digit Recognizer — Server Side</title>
+  <link rel="stylesheet" href="style.css">
+  <style>:root { --accent: #4caf50; }</style>
+</head>
+<body>
+
+  <nav class="nav">
+    <a href="/" class="active">Server side</a>
+    <a href="/browser">Browser side</a>
+  </nav>
+
+  <div class="badge">SERVER SIDE — model runs on Node.js</div>
+  <h1>Digit Recognizer</h1>
+  <p class="subtitle">Draw a digit, hit Predict. Your image is sent to the server.</p>
+
+  <canvas id="canvas" width="280" height="280"></canvas>
+
+  <div class="buttons">
+    <button id="predict-btn">Predict</button>
+    <button id="clear-btn">Clear</button>
+  </div>
+
+  <div class="result">
+    <div class="digit" id="digit">?</div>
+    <div class="conf"  id="conf">Draw a digit and click Predict</div>
+    <div class="bars"  id="bars"></div>
+  </div>
+
+  <script src="drawing.js"></script>
+<script>
+  initCanvas('canvas')
+
+  const barsDiv = document.getElementById('bars')
+  for (let i = 0; i < 10; i++) {
+    barsDiv.innerHTML += `
+      <div class="bar-col">
+        <div class="bar" id="bar-${i}" style="height:3px"></div>
+        <div class="bar-label">${i}</div>
+      </div>`
+  }
+
+  function updateBars(probs, predicted) {
+    const maxP = Math.max(...probs)
+    for (let i = 0; i < 10; i++) {
+      const bar = document.getElementById(`bar-${i}`)
+      bar.style.height     = Math.max(3, (probs[i] / maxP) * 74) + 'px'
+      bar.style.background = i === predicted ? 'var(--accent)' : '#444'
+    }
+  }
+
+  document.getElementById('clear-btn').onclick = () => {
+    clearCanvas('canvas')
+    document.getElementById('digit').textContent = '?'
+    document.getElementById('conf').textContent  = 'Draw a digit and click Predict'
+    for (let i = 0; i < 10; i++) {
+      document.getElementById(`bar-${i}`).style.height     = '3px'
+      document.getElementById(`bar-${i}`).style.background = '#333'
+    }
+  }
+
+  document.getElementById('predict-btn').onclick = async () => {
+    const pixels = getPixels('canvas')
+
+    const resp = await fetch('/predict', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pixels })
+    })
+    const { digit, confidence, probs } = await resp.json()
+
+    document.getElementById('digit').textContent = digit
+    document.getElementById('conf').textContent  = `${(confidence * 100).toFixed(1)}% confident`
+    updateBars(probs, digit)
+  }
+</script>
+</body>
+</html>
