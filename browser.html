@@ -99,7 +99,7 @@
   // ── Load model ───────────────────────────────────────────────────────────────
   let model = null
 
-  tf.loadLayersModel('model/model.json')
+  tf.loadGraphModel('model/model.json')
     .then(m => {
       model = m
       document.getElementById('predict-btn').disabled    = false
@@ -126,8 +126,11 @@
     // 3. Find the index of the highest probability (that's the predicted digit)
     // 4. Dispose the input and output tensors
 
-    const probs = null  // replace this
-    const digit = null  // replace this
+    const output = model.execute(t.expandDims(0))
+    const probs  = output.dataSync()
+    const digit  = probs.indexOf(Math.max(...probs))
+    t.dispose()
+    output.dispose()
 
     document.getElementById('digit').textContent = digit
     document.getElementById('conf').textContent  = `${(probs[digit] * 100).toFixed(1)}% confident`
